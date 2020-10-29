@@ -10,9 +10,16 @@ The main use-case is to monitor a user home directory or the `/etc` directory.
 
 ## Usage
 
+### Installation
+
+```
+$ curl --location --silent --show-error --output shadow-copy.sh https://raw.githubusercontent.com/alban-auzeill/shadow-copy/master/shadow-copy.sh
+$ chmod +x shadow-copy.sh 
+```
+
 ### Creating a shadow copy
 
-`shadow-copy.sh [<directory path 1>] [<directory path 2>] ...`
+`./shadow-copy.sh [<directory path 1>] [<directory path 2>] ...`
 
 Without arguments, the script will do a shadow copy of the current directory.
 
