@@ -1,2 +1,6 @@
 .idea/
+out/
 .tmp/
+.gradle
+**/build/
+!gradle-wrapper.jar

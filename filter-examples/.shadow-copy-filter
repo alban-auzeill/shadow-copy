@@ -1,0 +1,20 @@
+# ignore a file with a given name
+filename:equals:a.out
+
+# ignore a directory with a given name
+filename:equals:tmp/
+
+# ignore a relative path
+relative:equals:build/tmp/
+
+# ignore symbolic links
+symbolic-link
+
+# ignore file using a regular expression
+filename:reg-ex:^file[0-9]+$
+
+# ignore file extensions
+filename:end-with:.json
+
+# ignore file with more than 42 bytes
+max-size:42

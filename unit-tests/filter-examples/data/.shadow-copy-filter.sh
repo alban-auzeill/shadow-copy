@@ -1,1 +1,0 @@
-../../../filter-examples/.shadow-copy-filter.sh
