@@ -53,7 +53,6 @@ class ShadowCopyWalkerTest {
       sourceBaseDirectory,
       sourceBaseDirectory.resolve(options.shadowDirectoryName),
       null,
-      ShadowCopyWalker.Action.CREATE_COPY,
       filter);
   }
 

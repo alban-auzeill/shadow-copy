@@ -30,7 +30,9 @@ public class ShadowCopy {
       ShadowCopy shadowCopy = new ShadowCopy(options);
       for (String sourceDirectory : options.sourceDirectories) {
         Path shadowDirectoryPath = shadowCopy.copy(sourceDirectory);
-        System.out.println(shadowDirectoryPath.toString());
+        if (options.action == ShadowCopyWalker.Action.CREATE_COPY) {
+          options.out.println(shadowDirectoryPath.toString());
+        }
       }
     } catch (InterruptedException ex) {
       System.err.println("[INTERRUPTED] " + ex.getMessage());
@@ -47,12 +49,18 @@ public class ShadowCopy {
       throw new ShadowErrorException("Directory not found: " + sourceDirectory);
     }
     Path lastShadowDirectoryPath = findLastShadowBaseDirectory(sourceDirectoryPath, options.lastShadowIndex);
-    Path shadowDirectoryPath = createShadowBaseDirectory(sourceDirectoryPath);
+    Path shadowDirectoryPath;
+    if (options.action == ShadowCopyWalker.Action.DIFF_COPY) {
+      shadowDirectoryPath = lastShadowDirectoryPath;
+      if (shadowDirectoryPath == null) {
+        throw new ShadowErrorException("No previous shadow copy to match with.");
+      }
+    } else {
+      shadowDirectoryPath = createShadowBaseDirectory(sourceDirectoryPath);
+    }
     ShadowCopyFilter filter = createFilter(sourceDirectoryPath);
 
-    new ShadowCopyWalker(options,
-      sourceDirectoryPath, shadowDirectoryPath, lastShadowDirectoryPath,
-      ShadowCopyWalker.Action.CLEAN_BACKUP, filter)
+    new ShadowCopyWalker(options, sourceDirectoryPath, shadowDirectoryPath, lastShadowDirectoryPath, filter)
       .walk();
 
     return shadowDirectoryPath;

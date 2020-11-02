@@ -1,6 +1,8 @@
 package com.auzeill.file;
 
+import java.io.BufferedInputStream;
 import java.io.BufferedReader;
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -18,6 +20,8 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
+import java.util.TreeSet;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import javax.annotation.Nullable;
@@ -31,7 +35,7 @@ public class ShadowCopyWalker {
   enum Action {
     CREATE_COPY,
     DIFF_COPY,
-    CLEAN_BACKUP
+    //CLEAN_BACKUP
   }
 
   final ShadowCopyOptions options;
@@ -49,23 +53,122 @@ public class ShadowCopyWalker {
     Path sourceBaseDirectory,
     Path shadowBaseDirectory,
     @Nullable Path lastShadowBaseDirectory,
-    Action action,
     ShadowCopyFilter filter) {
 
     this.options = options;
     this.sourceBaseDirectory = sourceBaseDirectory;
     this.shadowBaseDirectory = shadowBaseDirectory;
     this.lastShadowBaseDirectory = lastShadowBaseDirectory;
-    this.action = action;
+    this.action = options.action;
     this.filter = filter;
   }
 
   public void walk() throws IOException, InterruptedException {
-    walk(RELATIVE_BASE_DIRECTORY);
+    if (action == Action.DIFF_COPY) {
+      walkDiff(RELATIVE_BASE_DIRECTORY);
+    } else {
+      walkCopy(RELATIVE_BASE_DIRECTORY);
+    }
     terminateBackgroundProcess();
   }
 
-  public void walk(Path relativePath) throws IOException, InterruptedException {
+  public void walkDiff(Path relativePath) throws IOException {
+    boolean isBaseDirectory = relativePath.equals(RELATIVE_BASE_DIRECTORY);
+    Path sourceDirectory = isBaseDirectory ? sourceBaseDirectory : sourceBaseDirectory.resolve(relativePath);
+    Path shadowDirectory = isBaseDirectory ? shadowBaseDirectory : shadowBaseDirectory.resolve(relativePath);
+    Set<Path> childPaths = new TreeSet<>(Comparator.comparing(Path::getFileName));
+    if (Files.isDirectory(sourceDirectory, LinkOption.NOFOLLOW_LINKS)) {
+      try (Stream<Path> fileList = Files.list(sourceDirectory)) {
+        fileList.forEach(childPaths::add);
+      }
+    }
+    if (Files.isDirectory(shadowDirectory, LinkOption.NOFOLLOW_LINKS)) {
+      try (Stream<Path> fileList = Files.list(shadowDirectory)) {
+        fileList.forEach(path -> childPaths.add(sourceDirectory.resolve(path.getFileName())));
+      }
+    }
+    for (Path sourceAbsolutePath : childPaths) {
+      Path fileName = sourceAbsolutePath.getFileName();
+      Path childRelativePath = isBaseDirectory ? fileName : relativePath.resolve(fileName);
+      RelativeFile relativeFile = new RelativeFile(sourceAbsolutePath, childRelativePath);
+      if (filter.filter(relativeFile)) {
+        Path shadowAbsolutePath = shadowDirectory.resolve(fileName);
+        boolean isDirectory;
+        if (!Files.exists(sourceAbsolutePath, LinkOption.NOFOLLOW_LINKS)) {
+          isDirectory = Files.isDirectory(shadowAbsolutePath, LinkOption.NOFOLLOW_LINKS);
+          options.out.println("[DELETED ] " + RelativeFile.suffixDirectory(childRelativePath.toString(), isDirectory));
+        } else if (!Files.exists(shadowAbsolutePath, LinkOption.NOFOLLOW_LINKS)) {
+          isDirectory = Files.isDirectory(sourceAbsolutePath, LinkOption.NOFOLLOW_LINKS);
+          options.out.println("[NEW     ] " + RelativeFile.suffixDirectory(childRelativePath.toString(), isDirectory));
+        } else {
+          PosixFileAttributes sourceAttributes = Files.readAttributes(sourceAbsolutePath, PosixFileAttributes.class, LinkOption.NOFOLLOW_LINKS);
+          PosixFileAttributes shadowAttributes = Files.readAttributes(shadowAbsolutePath, PosixFileAttributes.class, LinkOption.NOFOLLOW_LINKS);
+          isDirectory = sourceAttributes.isDirectory() || shadowAttributes.isDirectory();
+          if (isContentModified(sourceAbsolutePath, sourceAttributes, shadowAbsolutePath, shadowAttributes)) {
+            options.out.println("[MODIFIED] " + RelativeFile.suffixDirectory(childRelativePath.toString(), isDirectory));
+          } else if (isAttributesModified(sourceAttributes, shadowAttributes)) {
+            options.out.println("[CHANGED ] " + RelativeFile.suffixDirectory(childRelativePath.toString(), isDirectory));
+          }
+        }
+        if (isDirectory) {
+          walkDiff(childRelativePath);
+        }
+      }
+    }
+  }
+
+  private static boolean isContentModified(Path sourceAbsolutePath, PosixFileAttributes sourceAttributes, Path shadowAbsolutePath, PosixFileAttributes shadowAttributes)
+    throws IOException {
+    if (sourceAttributes.isSymbolicLink()) {
+      return !shadowAttributes.isSymbolicLink() ||
+        !Files.readSymbolicLink(sourceAbsolutePath).equals(Files.readSymbolicLink(shadowAbsolutePath));
+    } else if (sourceAttributes.isRegularFile()) {
+      if (!shadowAttributes.isRegularFile() || sourceAttributes.size() != shadowAttributes.size()) {
+        return true;
+      }
+      // fast comparison
+      if (sourceAttributes.lastModifiedTime().equals(shadowAttributes.lastModifiedTime())) {
+        return false;
+      }
+      // slow comparison
+      return !hasSameContent(sourceAbsolutePath, shadowAbsolutePath);
+    } else if (sourceAttributes.isDirectory()) {
+      return !shadowAttributes.isDirectory();
+    } else {
+      // Unsupported content comparison
+      return false;
+    }
+  }
+
+  private static boolean isAttributesModified(PosixFileAttributes sourceAttributes, PosixFileAttributes shadowAttributes) {
+    return !Objects.equals(sourceAttributes.group(), shadowAttributes.group()) ||
+           !Objects.equals(sourceAttributes.owner(), shadowAttributes.owner()) ||
+           !PosixFilePermissions.toString(sourceAttributes.permissions()).equals(PosixFilePermissions.toString(shadowAttributes.permissions()));
+  }
+
+  static boolean hasSameContent(Path path1, Path path2) throws IOException {
+    if (Files.size(path1) != Files.size(path2)) {
+      return false;
+    }
+    try (
+      InputStream input1 = new BufferedInputStream(new FileInputStream(path1.toFile()));
+      InputStream input2 = new BufferedInputStream(new FileInputStream(path2.toFile()))) {
+      byte[] buffer1 = new byte[4096];
+      byte[] buffer2 = new byte[buffer1.length];
+      int count1 = input1.read(buffer1);
+      int count2 = input2.read(buffer2);
+      while (count1 != -1 && count2 != -1) {
+        if (!Arrays.equals(buffer1, 0, count1, buffer2, 0, count2)) {
+          return false;
+        }
+        count1 = input1.read(buffer1);
+        count2 = input2.read(buffer2);
+      }
+      return count1 == count2;
+    }
+  }
+
+  public void walkCopy(Path relativePath) throws IOException, InterruptedException {
     boolean isBaseDirectory = relativePath.equals(RELATIVE_BASE_DIRECTORY);
     Path sourceDirectory = isBaseDirectory ? sourceBaseDirectory : sourceBaseDirectory.resolve(relativePath);
     List<Path> childPaths;
@@ -81,26 +184,26 @@ public class ShadowCopyWalker {
       if (filter.filter(relativeFile)) {
         PosixFileAttributes srcAttributes = Files.readAttributes(childAbsolutePath, PosixFileAttributes.class, LinkOption.NOFOLLOW_LINKS);
         if (srcAttributes.isSymbolicLink()) {
-          visitSymbolicLink(childAbsolutePath, shadowAbsolutePath, srcAttributes);
+          copySymbolicLink(childAbsolutePath, shadowAbsolutePath, srcAttributes);
         } else if (srcAttributes.isRegularFile()) {
-          visitRegularFile(childAbsolutePath, childRelativePath, srcAttributes, shadowAbsolutePath);
+          copyRegularFile(childAbsolutePath, childRelativePath, srcAttributes, shadowAbsolutePath);
         } else if (srcAttributes.isDirectory()) {
-          visitDirectory(childRelativePath, shadowAbsolutePath, srcAttributes);
+          copyDirectory(childRelativePath, shadowAbsolutePath, srcAttributes);
         } else {
-          visitUnsupportedFile(srcAttributes, shadowAbsolutePath);
+          copyUnsupportedFile(srcAttributes, shadowAbsolutePath);
         }
       }
     }
   }
 
-  private void visitUnsupportedFile(PosixFileAttributes srcAttributes, Path shadowAbsolutePath) throws IOException {
+  private void copyUnsupportedFile(PosixFileAttributes srcAttributes, Path shadowAbsolutePath) throws IOException {
     Files.writeString(shadowAbsolutePath, "Unsupported file type, lastModifiedTime: " + srcAttributes.lastModifiedTime(), UTF_8);
     copyAttributes(srcAttributes, shadowAbsolutePath);
   }
 
-  private void visitRegularFile(Path childAbsolutePath, Path childRelativePath, PosixFileAttributes srcAttributes, Path shadowAbsolutePath)
+  private void copyRegularFile(Path childAbsolutePath, Path childRelativePath, PosixFileAttributes srcAttributes, Path shadowAbsolutePath)
     throws IOException, InterruptedException {
-    Path identicalShadowFile = findLastShadowIdenticalRegularFile(childAbsolutePath, srcAttributes, childRelativePath);
+    Path identicalShadowFile = findLastShadowIdenticalRegularFile(srcAttributes, childRelativePath);
     if (identicalShadowFile != null) {
       // Create hardlink
       // Warning: do not "copyAttributes", permissions is in common with identicalShadowFile
@@ -145,12 +248,12 @@ public class ShadowCopyWalker {
     backgroundProcess.getOutputStream().close();
   }
 
-  private Path findLastShadowIdenticalRegularFile(Path srcAbsolutePath, PosixFileAttributes srcAttributes, Path relativePath) throws IOException {
+  private Path findLastShadowIdenticalRegularFile(PosixFileAttributes srcAttributes, Path relativePath) throws IOException {
     if (lastShadowBaseDirectory == null) {
       return null;
     }
     Path lastShadowPath = lastShadowBaseDirectory.resolve(relativePath);
-    if (!Files.isRegularFile(lastShadowPath)) {
+    if (!Files.isRegularFile(lastShadowPath, LinkOption.NOFOLLOW_LINKS)) {
       return null;
     }
     BasicFileAttributes lastAttributes = Files.readAttributes(lastShadowPath, BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS);
@@ -160,13 +263,13 @@ public class ShadowCopyWalker {
     return lastShadowPath;
   }
 
-  private void visitDirectory(Path relativePath, Path shadowAbsolutePath, PosixFileAttributes srcAttributes) throws IOException, InterruptedException {
+  private void copyDirectory(Path relativePath, Path shadowAbsolutePath, PosixFileAttributes srcAttributes) throws IOException, InterruptedException {
     Files.createDirectory(shadowAbsolutePath);
     copyAttributes(srcAttributes, shadowAbsolutePath);
-    walk(relativePath);
+    walkCopy(relativePath);
   }
 
-  private void visitSymbolicLink(Path childAbsolutePath, Path shadowAbsolutePath, PosixFileAttributes srcAttributes) throws IOException {
+  private void copySymbolicLink(Path childAbsolutePath, Path shadowAbsolutePath, PosixFileAttributes srcAttributes) throws IOException {
     Path target = Files.readSymbolicLink(childAbsolutePath);
     Files.createSymbolicLink(shadowAbsolutePath, target);
     copyAttributes(srcAttributes, shadowAbsolutePath);

@@ -20,7 +20,7 @@ public class RelativeFile {
     this.filename = suffixDirectory(absolute.getFileName().toString(), isDirectory);
   }
 
-  String suffixDirectory(String path, boolean isDirectory) {
+  public static String suffixDirectory(String path, boolean isDirectory) {
     if (isDirectory && !path.endsWith(File.separator)) {
       return path + File.separator;
     }

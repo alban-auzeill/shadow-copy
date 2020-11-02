@@ -1,7 +1,9 @@
 package com.auzeill.file;
 
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
+import java.io.PrintStream;
 import java.lang.ProcessBuilder.Redirect;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
@@ -153,6 +155,45 @@ class ShadowCopyTest {
     assertThat(result.resolve("fifo-named-pipe")).isRegularFile();
     String content = Files.readString(result.resolve("fifo-named-pipe"), UTF_8);
     assertThat(content).matches("Unsupported file type, lastModifiedTime: \\d+.*");
+  }
+
+  @Test
+  void diff(@TempDir Path base) throws IOException, InterruptedException {
+    // prepare
+    Files.writeString(base.resolve("f1"), "Test data", UTF_8);
+    Files.writeString(base.resolve("f2"), "Test data", UTF_8);
+    Files.writeString(base.resolve("f3"), "Test data", UTF_8);
+    Files.writeString(base.resolve("f4"), "Test data", UTF_8);
+
+    // copy
+    ShadowCopy shadowCopy = new ShadowCopy(new ShadowCopyOptions(new String[] {}));
+    Path copyResult = shadowCopy.copy(base.toString());
+
+    // diff before modify
+    ByteArrayOutputStream stdout1 = new ByteArrayOutputStream();
+    ShadowCopyOptions options1 = new ShadowCopyOptions(new PrintStream(stdout1, true, UTF_8), "--diff");
+    shadowCopy = new ShadowCopy(options1);
+    Path diffResult1 = shadowCopy.copy(base.toString());
+
+    assertThat(diffResult1).isEqualTo(copyResult);
+    assertThat(stdout1.toString(UTF_8)).isEmpty();
+
+    // modify
+    Files.delete(base.resolve("f2"));
+    Files.writeString(base.resolve("f4"), "Test data2", UTF_8);
+    Files.writeString(base.resolve("f5"), "Test data", UTF_8);
+
+    // diff after modify
+    ByteArrayOutputStream stdout2 = new ByteArrayOutputStream();
+    ShadowCopyOptions options2 = new ShadowCopyOptions(new PrintStream(stdout2, true, UTF_8), "--diff");
+    shadowCopy = new ShadowCopy(options2);
+    Path diffResult2 = shadowCopy.copy(base.toString());
+
+    assertThat(diffResult2).isEqualTo(copyResult);
+    assertThat(stdout2.toString(UTF_8)).isEqualTo("" +
+      "[DELETED ] f2\n" +
+      "[MODIFIED] f4\n" +
+      "[NEW     ] f5\n");
   }
 
   static void deleteIfExists(Path path) throws IOException {

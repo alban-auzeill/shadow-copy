@@ -1,5 +1,6 @@
 package com.auzeill.file;
 
+import java.io.PrintStream;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -10,8 +11,15 @@ public class ShadowCopyOptions {
   public String filterFilename = ".shadow-copy-filter";
   public int lastShadowIndex = 1;
   public List<String> sourceDirectories;
+  public ShadowCopyWalker.Action action = ShadowCopyWalker.Action.CREATE_COPY;
+  public final PrintStream out;
 
   public ShadowCopyOptions(String[] args) {
+    this(System.out, args);
+  }
+
+  public ShadowCopyOptions(PrintStream out, String... args) {
+    this.out = out;
     sourceDirectories = new ArrayList<>();
     for (int i = 0; i < args.length; i++) {
       if (args[i].equals("--shadow-directory")) {
@@ -39,6 +47,8 @@ public class ShadowCopyOptions {
           }
         }
         i++;
+      } else if (args[i].equals("--diff")) {
+        action = ShadowCopyWalker.Action.DIFF_COPY;
       } else {
         sourceDirectories.add(args[i]);
       }
