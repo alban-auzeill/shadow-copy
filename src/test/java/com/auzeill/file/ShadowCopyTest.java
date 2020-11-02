@@ -58,7 +58,7 @@ class ShadowCopyTest {
 
     // copy
     ShadowCopy shadowCopy = new ShadowCopy(new ShadowCopyOptions(new String[] {}));
-    Path result = shadowCopy.copy(base.toString());
+    Path result = shadowCopy.copy(base);
 
     // check
     assertThat(base.resolve(".shadow-copy")).isDirectory();
@@ -82,7 +82,7 @@ class ShadowCopyTest {
 
     // copy
     ShadowCopy shadowCopy = new ShadowCopy(new ShadowCopyOptions(new String[] {}));
-    Path result = shadowCopy.copy(base.toString());
+    Path result = shadowCopy.copy(base);
 
     // check
     assertThat(base.resolve(".shadow-copy")).isDirectory();
@@ -117,9 +117,9 @@ class ShadowCopyTest {
     Files.writeString(base.resolve("f2.txt"), "Content1", UTF_8);
 
     // copy
-    Path result1 = shadowCopy.copy(base.toString());
+    Path result1 = shadowCopy.copy(base);
     Files.writeString(base.resolve("f2.txt"), "Content1.1", UTF_8);
-    Path result2 = shadowCopy.copy(base.toString());
+    Path result2 = shadowCopy.copy(base);
 
     // check
     assertThat(base.resolve(".shadow-copy")).isDirectory();
@@ -146,7 +146,7 @@ class ShadowCopyTest {
 
     // copy
     ShadowCopy shadowCopy = new ShadowCopy(new ShadowCopyOptions(new String[] {}));
-    Path result = shadowCopy.copy(base.toString());
+    Path result = shadowCopy.copy(base);
 
     assertThat(base.resolve(".shadow-copy")).isDirectory();
     assertThat(result).isDirectory();
@@ -167,15 +167,14 @@ class ShadowCopyTest {
 
     // copy
     ShadowCopy shadowCopy = new ShadowCopy(new ShadowCopyOptions(new String[] {}));
-    Path copyResult = shadowCopy.copy(base.toString());
+    Path copyResult = shadowCopy.copy(base);
 
     // diff before modify
     ByteArrayOutputStream stdout1 = new ByteArrayOutputStream();
     ShadowCopyOptions options1 = new ShadowCopyOptions(new PrintStream(stdout1, true, UTF_8), "--diff");
     shadowCopy = new ShadowCopy(options1);
-    Path diffResult1 = shadowCopy.copy(base.toString());
+    shadowCopy.diff(base);
 
-    assertThat(diffResult1).isEqualTo(copyResult);
     assertThat(stdout1.toString(UTF_8)).isEmpty();
 
     // modify
@@ -187,9 +186,8 @@ class ShadowCopyTest {
     ByteArrayOutputStream stdout2 = new ByteArrayOutputStream();
     ShadowCopyOptions options2 = new ShadowCopyOptions(new PrintStream(stdout2, true, UTF_8), "--diff");
     shadowCopy = new ShadowCopy(options2);
-    Path diffResult2 = shadowCopy.copy(base.toString());
+    shadowCopy.diff(base);
 
-    assertThat(diffResult2).isEqualTo(copyResult);
     assertThat(stdout2.toString(UTF_8)).isEqualTo("" +
       "[DELETED ] f2\n" +
       "[MODIFIED] f4\n" +

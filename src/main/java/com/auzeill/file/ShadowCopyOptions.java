@@ -11,7 +11,7 @@ public class ShadowCopyOptions {
   public String filterFilename = ".shadow-copy-filter";
   public int lastShadowIndex = 1;
   public List<String> sourceDirectories;
-  public ShadowCopyWalker.Action action = ShadowCopyWalker.Action.CREATE_COPY;
+  public Action action = Action.CREATE_COPY;
   public final PrintStream out;
 
   public ShadowCopyOptions(String[] args) {
@@ -48,7 +48,7 @@ public class ShadowCopyOptions {
         }
         i++;
       } else if (args[i].equals("--diff")) {
-        action = ShadowCopyWalker.Action.DIFF_COPY;
+        action = Action.DIFF_COPY;
       } else {
         sourceDirectories.add(args[i]);
       }
