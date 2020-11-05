@@ -1,5 +1,8 @@
-package com.auzeill.file;
+package com.auzeill.shadow.copy.action;
 
+import com.auzeill.shadow.copy.filter.FileFilter;
+import com.auzeill.shadow.copy.filter.FileInfo;
+import com.auzeill.shadow.copy.utils.ActionUtils;
 import java.io.BufferedInputStream;
 import java.io.FileInputStream;
 import java.io.IOException;
@@ -24,10 +27,10 @@ public class DiffWalker {
 
   final Path oldBaseDirectory;
   final Path newBaseDirectory;
-  final ShadowCopyFilter filter;
+  final FileFilter filter;
   final PrintStream out;
 
-  public DiffWalker(Path oldBaseDirectory, Path newBaseDirectory, ShadowCopyFilter filter, PrintStream out) {
+  public DiffWalker(Path oldBaseDirectory, Path newBaseDirectory, FileFilter filter, PrintStream out) {
     this.oldBaseDirectory = oldBaseDirectory;
     this.newBaseDirectory = newBaseDirectory;
     this.filter = filter;
@@ -35,13 +38,12 @@ public class DiffWalker {
   }
 
   public void walk() throws IOException {
-    walk(BASE);
+    walk(ActionUtils.DOT_DIRECTORY);
   }
 
   private void walk(Path relativePath) throws IOException {
-    boolean isBaseDirectory = relativePath.equals(BASE);
-    Path oldDirectory = isBaseDirectory ? oldBaseDirectory : oldBaseDirectory.resolve(relativePath);
-    Path newDirectory = isBaseDirectory ? newBaseDirectory : newBaseDirectory.resolve(relativePath);
+    Path oldDirectory = ActionUtils.resolve(oldBaseDirectory, relativePath);
+    Path newDirectory = ActionUtils.resolve(newBaseDirectory, relativePath);
     Set<Path> childPaths = new TreeSet<>(Comparator.comparing(Path::getFileName));
     if (Files.isDirectory(newDirectory, LinkOption.NOFOLLOW_LINKS)) {
       try (Stream<Path> fileList = Files.list(newDirectory)) {
@@ -55,25 +57,25 @@ public class DiffWalker {
     }
     for (Path newAbsolutePath : childPaths) {
       Path fileName = newAbsolutePath.getFileName();
-      Path childRelativePath = isBaseDirectory ? fileName : relativePath.resolve(fileName);
-      RelativeFile relativeFile = new RelativeFile(newAbsolutePath, childRelativePath);
-      if (filter.filter(relativeFile)) {
+      Path childRelativePath = ActionUtils.resolve(relativePath, fileName);
+      FileInfo fileInfo = new FileInfo(newAbsolutePath, childRelativePath);
+      if (filter.filter(fileInfo)) {
         Path oldAbsolutePath = oldDirectory.resolve(fileName);
         boolean isDirectory;
         if (!Files.exists(newAbsolutePath, LinkOption.NOFOLLOW_LINKS)) {
           isDirectory = Files.isDirectory(oldAbsolutePath, LinkOption.NOFOLLOW_LINKS);
-          out.println("[DELETED ] " + RelativeFile.suffixDirectory(childRelativePath.toString(), isDirectory));
+          out.println("[DELETED ] " + FileInfo.suffixDirectory(childRelativePath.toString(), isDirectory));
         } else if (!Files.exists(oldAbsolutePath, LinkOption.NOFOLLOW_LINKS)) {
           isDirectory = Files.isDirectory(newAbsolutePath, LinkOption.NOFOLLOW_LINKS);
-          out.println("[NEW     ] " + RelativeFile.suffixDirectory(childRelativePath.toString(), isDirectory));
+          out.println("[NEW     ] " + FileInfo.suffixDirectory(childRelativePath.toString(), isDirectory));
         } else {
           PosixFileAttributes oldAttributes = Files.readAttributes(oldAbsolutePath, PosixFileAttributes.class, LinkOption.NOFOLLOW_LINKS);
           PosixFileAttributes newAttributes = Files.readAttributes(newAbsolutePath, PosixFileAttributes.class, LinkOption.NOFOLLOW_LINKS);
           isDirectory = newAttributes.isDirectory() || oldAttributes.isDirectory();
           if (isContentModified(newAbsolutePath, newAttributes, oldAbsolutePath, oldAttributes)) {
-            out.println("[MODIFIED] " + RelativeFile.suffixDirectory(childRelativePath.toString(), isDirectory));
+            out.println("[MODIFIED] " + FileInfo.suffixDirectory(childRelativePath.toString(), isDirectory));
           } else if (isAttributesModified(newAttributes, oldAttributes)) {
-            out.println("[CHANGED ] " + RelativeFile.suffixDirectory(childRelativePath.toString(), isDirectory));
+            out.println("[CHANGED ] " + FileInfo.suffixDirectory(childRelativePath.toString(), isDirectory));
           }
         }
         if (isDirectory) {
@@ -108,8 +110,8 @@ public class DiffWalker {
 
   private static boolean isAttributesModified(PosixFileAttributes newAttributes, PosixFileAttributes oldAttributes) {
     return !Objects.equals(newAttributes.group(), oldAttributes.group()) ||
-           !Objects.equals(newAttributes.owner(), oldAttributes.owner()) ||
-           !PosixFilePermissions.toString(newAttributes.permissions()).equals(PosixFilePermissions.toString(oldAttributes.permissions()));
+      !Objects.equals(newAttributes.owner(), oldAttributes.owner()) ||
+      !PosixFilePermissions.toString(newAttributes.permissions()).equals(PosixFilePermissions.toString(oldAttributes.permissions()));
   }
 
   static boolean hasSameContent(Path path1, Path path2) throws IOException {

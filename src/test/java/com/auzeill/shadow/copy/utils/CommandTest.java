@@ -1,5 +1,6 @@
-package com.auzeill.file;
+package com.auzeill.shadow.copy.utils;
 
+import com.auzeill.shadow.copy.ShadowCopyError;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -28,7 +29,7 @@ class CommandTest {
     Path f2 = tempDir.resolve("f2");
     Command command = Command.exec("/bin/cp", unknown.toString(), f2.toString());
     assertThatThrownBy(command::waitFor)
-      .isInstanceOf(ShadowErrorException.class)
+      .isInstanceOf(ShadowCopyError.class)
       .hasMessageStartingWith("Unexpected exit value 1 for command: \"/bin/cp\"")
       .hasMessageContaining("No such file");
   }

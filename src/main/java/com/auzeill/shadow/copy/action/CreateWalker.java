@@ -1,10 +1,13 @@
-package com.auzeill.file;
+package com.auzeill.shadow.copy.action;
 
+import com.auzeill.shadow.copy.filter.FileFilter;
+import com.auzeill.shadow.copy.filter.FileInfo;
+import com.auzeill.shadow.copy.utils.ActionUtils;
+import com.auzeill.shadow.copy.utils.Command;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.attribute.PosixFileAttributeView;
 import java.nio.file.attribute.PosixFileAttributes;
@@ -18,20 +21,18 @@ import javax.annotation.Nullable;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 
-public class CopyWalker {
-
-  private static final Path RELATIVE_BASE_DIRECTORY = Paths.get(".");
+public class CreateWalker {
 
   final Path sourceBaseDirectory;
   final Path shadowBaseDirectory;
-  final ShadowCopyFilter filter;
+  final FileFilter filter;
   @Nullable
   final Path lastShadowBaseDirectory;
 
   Command backgroundCommand = null;
 
-  public CopyWalker(Path sourceBaseDirectory, Path shadowBaseDirectory,
-    @Nullable Path lastShadowBaseDirectory, ShadowCopyFilter filter) {
+  public CreateWalker(Path sourceBaseDirectory, Path shadowBaseDirectory,
+    @Nullable Path lastShadowBaseDirectory, FileFilter filter) {
     this.sourceBaseDirectory = sourceBaseDirectory;
     this.shadowBaseDirectory = shadowBaseDirectory;
     this.lastShadowBaseDirectory = lastShadowBaseDirectory;
@@ -39,7 +40,7 @@ public class CopyWalker {
   }
 
   public void walk() throws IOException, InterruptedException {
-    walk(RELATIVE_BASE_DIRECTORY);
+    walk(ActionUtils.DOT_DIRECTORY);
     if (backgroundCommand != null) {
       backgroundCommand.waitFor();
       backgroundCommand = null;
@@ -47,8 +48,7 @@ public class CopyWalker {
   }
 
   private void walk(Path relativePath) throws IOException, InterruptedException {
-    boolean isBaseDirectory = relativePath.equals(RELATIVE_BASE_DIRECTORY);
-    Path sourceDirectory = isBaseDirectory ? sourceBaseDirectory : sourceBaseDirectory.resolve(relativePath);
+    Path sourceDirectory = ActionUtils.resolve(sourceBaseDirectory, relativePath);
     List<Path> childPaths;
     try (Stream<Path> fileList = Files.list(sourceDirectory)) {
       childPaths = fileList
@@ -56,10 +56,10 @@ public class CopyWalker {
         .collect(Collectors.toList());
     }
     for (Path childAbsolutePath : childPaths) {
-      Path childRelativePath = isBaseDirectory ? childAbsolutePath.getFileName() : relativePath.resolve(childAbsolutePath.getFileName());
-      RelativeFile relativeFile = new RelativeFile(childAbsolutePath, childRelativePath);
+      Path childRelativePath = ActionUtils.resolve(relativePath, childAbsolutePath.getFileName());
+      FileInfo fileInfo = new FileInfo(childAbsolutePath, childRelativePath);
       Path shadowAbsolutePath = shadowBaseDirectory.resolve(childRelativePath);
-      if (filter.filter(relativeFile)) {
+      if (filter.filter(fileInfo)) {
         PosixFileAttributes srcAttributes = Files.readAttributes(childAbsolutePath, PosixFileAttributes.class, LinkOption.NOFOLLOW_LINKS);
         if (srcAttributes.isSymbolicLink()) {
           copySymbolicLink(childAbsolutePath, shadowAbsolutePath, srcAttributes);

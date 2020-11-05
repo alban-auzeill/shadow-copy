@@ -2,7 +2,7 @@ plugins {
     id 'java'
 }
 
-group 'com.auzeill.file'
+group 'com.auzeill.shadow.copy'
 project.version '1.0-SNAPSHOT'
 
 if (project.hasProperty('releaseVersion')) {
@@ -18,15 +18,25 @@ test {
 }
 
 dependencies {
-    compile 'com.google.code.findbugs:jsr305:3.0.2'
+    compileOnly 'com.google.code.findbugs:jsr305:3.0.2'
     testImplementation 'org.junit.jupiter:junit-jupiter:5.4.2'
     testImplementation 'org.assertj:assertj-core:3.11.1'
+}
+
+processResources {
+    doLast {
+        // override src/main/resources/com/auzeill/shadow/copy/shadow-copy.version
+        def versionAndDate = project.version + " (" + new Date().format("yyyy.MM.dd-HH'h'mm") + ")"
+        def parentDir = new File(sourceSets.main.output.resourcesDir, "com/auzeill/shadow/copy")
+        parentDir.mkdirs()
+        new File(parentDir, "shadow-copy.version").text = versionAndDate
+    }
 }
 
 jar {
     manifest {
         attributes(
-                "Main-Class": "com.auzeill.file.ShadowCopy"
+                "Main-Class": "com.auzeill.shadow.copy.ShadowCopy"
         )
     }
 }

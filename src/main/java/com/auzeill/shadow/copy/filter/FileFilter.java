@@ -1,5 +1,8 @@
-package com.auzeill.file;
+package com.auzeill.shadow.copy.filter;
 
+import com.auzeill.shadow.copy.ShadowCopyError;
+import com.auzeill.shadow.copy.utils.ActionUtils;
+import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -16,11 +19,11 @@ import javax.annotation.Nullable;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 
-public class ShadowCopyFilter {
+public class FileFilter {
 
   @FunctionalInterface
   interface IgnoreMatcher {
-    boolean matches(RelativeFile file) throws IOException;
+    boolean matches(FileInfo file) throws IOException;
   }
 
   enum Subject {
@@ -65,16 +68,30 @@ public class ShadowCopyFilter {
   Map<String, List<IgnoreMatcher>> ignoreByAbsolutePath = new HashMap<>();
   List<IgnoreMatcher> notIndexedIgnoreMatchers = new ArrayList<>();
 
-  public static ShadowCopyFilter load(Path ignoreFile) throws IOException {
+
+  public static FileFilter loadFromShadowDirectory(Path shadowDirectory) throws IOException {
+    Path filterPath = shadowDirectory.resolve("ignore");
+    FileFilter filter;
+    if (Files.exists(filterPath)) {
+      filter = FileFilter.load(filterPath);
+    } else {
+      filter = new FileFilter();
+    }
+    filter.addIgnoredFilename(ActionUtils.DEFAULT_SHADOW_DIRECTORY_NAME + File.separator);
+    filter.addIgnoredAbsolutePath(shadowDirectory.toString() + File.separator);
+    return filter;
+  }
+
+  public static FileFilter load(Path ignoreFile) throws IOException {
     return load(Files.readString(ignoreFile, UTF_8));
   }
 
-  public static ShadowCopyFilter load(String ignoreConfiguration) {
-    ShadowCopyFilter filter = new ShadowCopyFilter();
+  public static FileFilter load(String ignoreConfiguration) {
+    FileFilter filter = new FileFilter();
     ignoreConfiguration.lines()
       .map(line -> line.replace("^[ \t]+", ""))
       .filter(line -> !line.isEmpty() && !(line.startsWith("#") || line.startsWith("//")))
-      .map(ShadowCopyFilter::parseExpression)
+      .map(FileFilter::parseExpression)
       .forEach(filter::add);
     return filter;
   }
@@ -86,7 +103,7 @@ public class ShadowCopyFilter {
       }
     }
     String valueList = Arrays.stream(values).map(Object::toString).collect(Collectors.joining(", "));
-    throw new ShadowErrorException("Missing prefix (" + valueList + ") at " + start + " in expression: " + expression);
+    throw new ShadowCopyError("Missing prefix (" + valueList + ") at " + start + " in expression: " + expression);
   }
 
   private void add(Expression expression) {
@@ -100,14 +117,18 @@ public class ShadowCopyFilter {
     ignoreByFileName.put(filename, Collections.singletonList(file -> true));
   }
 
-  public boolean filter(RelativeFile file) throws IOException {
+  public void addIgnoredAbsolutePath(String path) {
+    ignoreByAbsolutePath.put(path, Collections.singletonList(file -> true));
+  }
+
+  public boolean filter(FileInfo file) throws IOException {
     return noneMatch(ignoreByFileName.get(file.filename), file) &&
       noneMatch(ignoreByRelativePath.get(file.relative), file) &&
       noneMatch(ignoreByAbsolutePath.get(file.absolute), file) &&
       noneMatch(notIndexedIgnoreMatchers, file);
   }
 
-  private static boolean noneMatch(@Nullable List<IgnoreMatcher> ignoreMatchers, RelativeFile file) throws IOException {
+  private static boolean noneMatch(@Nullable List<IgnoreMatcher> ignoreMatchers, FileInfo file) throws IOException {
     if (ignoreMatchers == null) {
       return true;
     }
@@ -122,7 +143,7 @@ public class ShadowCopyFilter {
   public interface Expression {
     int end();
 
-    boolean index(ShadowCopyFilter filter, IgnoreMatcher ignoreMatcher);
+    boolean index(FileFilter filter, IgnoreMatcher ignoreMatcher);
 
     IgnoreMatcher ignoreMatcher();
   }
@@ -140,7 +161,7 @@ public class ShadowCopyFilter {
   public static Expression parseExpression(String code) {
     Expression expression = parseExpression(code, 0, Collections.emptyList());
     if (expression.end() != code.length()) {
-      throw new ShadowErrorException("Unexpected character at " + expression.end() + " in: " + code);
+      throw new ShadowCopyError("Unexpected character at " + expression.end() + " in: " + code);
     }
     return expression;
   }
@@ -227,7 +248,7 @@ public class ShadowCopyFilter {
     Expression content = parseExpression(code, leftSeparator + 1, endChars);
     int rightSeparator = nonSpace(code, content.end());
     if (rightSeparator >= code.length() || code.charAt(rightSeparator) != delimiter.closeChar) {
-      throw new ShadowErrorException("Missing delimiter '" + delimiter.closeChar + "' at " + rightSeparator + " in: " + code);
+      throw new ShadowCopyError("Missing delimiter '" + delimiter.closeChar + "' at " + rightSeparator + " in: " + code);
     }
     int end = nonSpace(code, rightSeparator + 1);
     return new DelimitedExpression(start, end, content);
@@ -255,9 +276,9 @@ public class ShadowCopyFilter {
     int patternStart = pos;
     int patternEnd = findEndOfPattern(code, patternStart, endChars);
     if (patternEnd == patternStart && type != Type.SYMBOLIC_LINKS) {
-      throw new ShadowErrorException("Empty pattern at " + patternStart + " in: " + code);
+      throw new ShadowCopyError("Empty pattern at " + patternStart + " in: " + code);
     } else if (patternEnd != patternStart && type == Type.SYMBOLIC_LINKS) {
-      throw new ShadowErrorException("None empty pattern at " + patternStart + " in: " + code);
+      throw new ShadowCopyError("None empty pattern at " + patternStart + " in: " + code);
     }
     return new MatcherExpression(start, patternEnd, subject, type, code.substring(patternStart, patternEnd));
   }
@@ -311,7 +332,7 @@ public class ShadowCopyFilter {
     }
 
     @Override
-    public boolean index(ShadowCopyFilter filter, IgnoreMatcher ignoreMatcher) {
+    public boolean index(FileFilter filter, IgnoreMatcher ignoreMatcher) {
       if (operator == Operator.AND) {
         return leftOperand.index(filter, ignoreMatcher) || rightOperand.index(filter, ignoreMatcher);
       } else {
@@ -354,7 +375,7 @@ public class ShadowCopyFilter {
     }
 
     @Override
-    public boolean index(ShadowCopyFilter filter, IgnoreMatcher ignoreMatcher) {
+    public boolean index(FileFilter filter, IgnoreMatcher ignoreMatcher) {
       if (subject == Subject.FILENAME && type == Type.EQUALS) {
         filter.ignoreByFileName.computeIfAbsent(pattern, p -> new ArrayList<>()).add(ignoreMatcher);
         return true;
@@ -403,7 +424,7 @@ public class ShadowCopyFilter {
           return parent != null && Files.exists(parent.resolve(expectedSibling));
         };
       } else {
-        throw new ShadowErrorException("Unsupported expression: " + subject + type + pattern);
+        throw new ShadowCopyError("Unsupported expression: " + subject + type + pattern);
       }
     }
 
@@ -427,7 +448,7 @@ public class ShadowCopyFilter {
     }
 
     @Override
-    public boolean index(ShadowCopyFilter filter, IgnoreMatcher ignoreMatcher) {
+    public boolean index(FileFilter filter, IgnoreMatcher ignoreMatcher) {
       return content.index(filter, ignoreMatcher);
     }
 

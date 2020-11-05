@@ -1,12 +1,13 @@
-package com.auzeill.file;
+package com.auzeill.shadow.copy.utils;
 
+import com.auzeill.shadow.copy.ShadowCopyError;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Arrays;
 import java.util.stream.Collectors;
 import java.lang.ProcessBuilder.Redirect;
 
-class Command {
+public class Command {
 
   private final String[] command;
   private final Process process;
@@ -30,7 +31,7 @@ class Command {
     String error = errorStream();
     int exitValue = process.waitFor();
     if (exitValue != 0) {
-      throw new ShadowErrorException("Unexpected exit value " + exitValue + " for command: " + command() + "\n" + error);
+      throw new ShadowCopyError("Unexpected exit value " + exitValue + " for command: " + command() + "\n" + error);
     }
   }
 

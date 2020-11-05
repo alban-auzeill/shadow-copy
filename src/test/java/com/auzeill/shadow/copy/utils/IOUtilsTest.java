@@ -1,4 +1,4 @@
-package com.auzeill.file;
+package com.auzeill.shadow.copy.utils;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;

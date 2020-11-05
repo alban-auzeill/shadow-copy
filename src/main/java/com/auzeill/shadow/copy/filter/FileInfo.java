@@ -1,10 +1,10 @@
-package com.auzeill.file;
+package com.auzeill.shadow.copy.filter;
 
 import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
-public class RelativeFile {
+public class FileInfo {
 
   public final boolean isDirectory;
   public final Path absolutePath;
@@ -12,7 +12,7 @@ public class RelativeFile {
   public final String relative;
   public final String filename;
 
-  public RelativeFile(Path absolute, Path relative) {
+  public FileInfo(Path absolute, Path relative) {
     this.isDirectory = Files.isDirectory(absolute);
     this.absolutePath = absolute;
     this.absolute = suffixDirectory(absolute.toString(), isDirectory);

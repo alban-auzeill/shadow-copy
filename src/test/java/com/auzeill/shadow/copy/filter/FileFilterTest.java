@@ -1,12 +1,13 @@
-package com.auzeill.file;
+package com.auzeill.shadow.copy.filter;
 
-import com.auzeill.file.ShadowCopyFilter.BinaryExpression;
-import com.auzeill.file.ShadowCopyFilter.BinaryExpression.Operator;
-import com.auzeill.file.ShadowCopyFilter.DelimitedExpression;
-import com.auzeill.file.ShadowCopyFilter.IgnoreMatcher;
-import com.auzeill.file.ShadowCopyFilter.MatcherExpression;
-import com.auzeill.file.ShadowCopyFilter.Subject;
-import com.auzeill.file.ShadowCopyFilter.Type;
+import com.auzeill.shadow.copy.ShadowCopyError;
+import com.auzeill.shadow.copy.filter.FileFilter.BinaryExpression;
+import com.auzeill.shadow.copy.filter.FileFilter.BinaryExpression.Operator;
+import com.auzeill.shadow.copy.filter.FileFilter.DelimitedExpression;
+import com.auzeill.shadow.copy.filter.FileFilter.IgnoreMatcher;
+import com.auzeill.shadow.copy.filter.FileFilter.MatcherExpression;
+import com.auzeill.shadow.copy.filter.FileFilter.Subject;
+import com.auzeill.shadow.copy.filter.FileFilter.Type;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -18,20 +19,20 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
-import static com.auzeill.file.ShadowCopyFilter.findEndOfPattern;
-import static com.auzeill.file.ShadowCopyFilter.load;
-import static com.auzeill.file.ShadowCopyFilter.nonSpace;
-import static com.auzeill.file.ShadowCopyFilter.parseAndExpression;
-import static com.auzeill.file.ShadowCopyFilter.parseDelimited;
-import static com.auzeill.file.ShadowCopyFilter.parseDelimitedOrMatcher;
-import static com.auzeill.file.ShadowCopyFilter.parseExpression;
-import static com.auzeill.file.ShadowCopyFilter.parseMatcher;
-import static com.auzeill.file.ShadowCopyFilter.parseOrExpression;
+import static com.auzeill.shadow.copy.filter.FileFilter.findEndOfPattern;
+import static com.auzeill.shadow.copy.filter.FileFilter.load;
+import static com.auzeill.shadow.copy.filter.FileFilter.nonSpace;
+import static com.auzeill.shadow.copy.filter.FileFilter.parseAndExpression;
+import static com.auzeill.shadow.copy.filter.FileFilter.parseDelimited;
+import static com.auzeill.shadow.copy.filter.FileFilter.parseDelimitedOrMatcher;
+import static com.auzeill.shadow.copy.filter.FileFilter.parseExpression;
+import static com.auzeill.shadow.copy.filter.FileFilter.parseMatcher;
+import static com.auzeill.shadow.copy.filter.FileFilter.parseOrExpression;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-class ShadowCopyFilterTest {
+class FileFilterTest {
 
   @Test
   void non_space() {
@@ -101,7 +102,7 @@ class ShadowCopyFilterTest {
   void parse_matcher_empty_pattern() {
     List<String> endChars = Collections.emptyList();
     assertThatThrownBy(() -> parseMatcher("absolute:reg-ex:", 0, endChars))
-      .isInstanceOf(ShadowErrorException.class)
+      .isInstanceOf(ShadowCopyError.class)
       .hasMessage("Empty pattern at 16 in: absolute:reg-ex:");
   }
 
@@ -110,19 +111,19 @@ class ShadowCopyFilterTest {
     List<String> endChars = Collections.emptyList();
 
     assertThatThrownBy(() -> parseMatcher("", 0, endChars))
-      .isInstanceOf(ShadowErrorException.class)
+      .isInstanceOf(ShadowCopyError.class)
       .hasMessage("Missing prefix (absolute:, relative:, filename:) at 0 in expression: ");
 
     assertThatThrownBy(() -> parseMatcher("xx&&", 4, endChars))
-      .isInstanceOf(ShadowErrorException.class)
+      .isInstanceOf(ShadowCopyError.class)
       .hasMessage("Missing prefix (absolute:, relative:, filename:) at 4 in expression: xx&&");
 
     assertThatThrownBy(() -> parseMatcher("xx&&unknown:equals:file.txt", 4, endChars))
-      .isInstanceOf(ShadowErrorException.class)
+      .isInstanceOf(ShadowCopyError.class)
       .hasMessage("Missing prefix (absolute:, relative:, filename:) at 4 in expression: xx&&unknown:equals:file.txt");
 
     assertThatThrownBy(() -> parseMatcher("xx&&filename:unknown:file.txt", 4, endChars))
-      .isInstanceOf(ShadowErrorException.class)
+      .isInstanceOf(ShadowCopyError.class)
       .hasMessage("Missing prefix (equals:, end-with:, reg-ex:, symbolic-link, max-size:, has-sibling:) at 13 in expression: xx&&filename:unknown:file.txt");
 
   }
@@ -134,19 +135,19 @@ class ShadowCopyFilterTest {
     assertThat(parseDelimited("filename:equals:x", 0)).isNull();
 
     assertThatThrownBy(() -> parseDelimited("[]", 0))
-      .isInstanceOf(ShadowErrorException.class)
+      .isInstanceOf(ShadowCopyError.class)
       .hasMessage("Missing prefix (absolute:, relative:, filename:) at 1 in expression: []");
 
     assertThatThrownBy(() -> parseDelimited("(filename:equals:x", 0))
-      .isInstanceOf(ShadowErrorException.class)
+      .isInstanceOf(ShadowCopyError.class)
       .hasMessage("Missing delimiter ')' at 18 in: (filename:equals:x");
 
     assertThatThrownBy(() -> parseDelimited("(filename:equals:x}", 0))
-      .isInstanceOf(ShadowErrorException.class)
+      .isInstanceOf(ShadowCopyError.class)
       .hasMessage("Missing delimiter ')' at 19 in: (filename:equals:x}");
 
     assertThatThrownBy(() -> parseDelimited("((filename:equals:x)unknown", 0))
-      .isInstanceOf(ShadowErrorException.class)
+      .isInstanceOf(ShadowCopyError.class)
       .hasMessage("Missing delimiter ')' at 20 in: ((filename:equals:x)unknown");
 
     DelimitedExpression expression = parseDelimited("    {filename:equals:x}  ", 2);
@@ -234,22 +235,22 @@ class ShadowCopyFilterTest {
     assertThat(((BinaryExpression)parseExpression("(filename:equals:a)&&(filename:equals:b)||(filename:equals:c)")).operator).isEqualTo(Operator.OR);
 
     assertThatThrownBy(() -> parseExpression(""))
-      .isInstanceOf(ShadowErrorException.class)
+      .isInstanceOf(ShadowCopyError.class)
       .hasMessage("Missing prefix (absolute:, relative:, filename:) at 0 in expression: ");
 
     assertThatThrownBy(() -> parseExpression("unknown"))
-      .isInstanceOf(ShadowErrorException.class)
+      .isInstanceOf(ShadowCopyError.class)
       .hasMessage("Missing prefix (absolute:, relative:, filename:) at 0 in expression: unknown");
 
     assertThatThrownBy(() -> parseExpression("(filename:equals:x)filename:equals:x"))
-      .isInstanceOf(ShadowErrorException.class)
+      .isInstanceOf(ShadowCopyError.class)
       .hasMessage("Unexpected character at 19 in: (filename:equals:x)filename:equals:x");
   }
 
   @Test
   void can_be_indexed() {
 
-    ShadowCopyFilter filter = load("");
+    FileFilter filter = load("");
 
     IgnoreMatcher ignoreMatcher = f -> true;
     assertThat(parseExpression("filename:equals:a").index(filter, ignoreMatcher)).isTrue();
@@ -304,20 +305,20 @@ class ShadowCopyFilterTest {
   @Test
   void no_prefix() {
     assertThatThrownBy(() -> load("file.txt"))
-      .isInstanceOf(ShadowErrorException.class)
+      .isInstanceOf(ShadowCopyError.class)
       .hasMessage("Missing prefix (absolute:, relative:, filename:) at 0 in expression: file.txt");
   }
 
   @Test
   void empty() {
-    ShadowCopyFilter filter = load("");
+    FileFilter filter = load("");
     assertThat(filter.ignoreByFileName).isEmpty();
     assertThat(filter.ignoreByRelativePath).isEmpty();
   }
 
   @Test
   void comment_and_end_of_line() {
-    ShadowCopyFilter filter = load("\n# Comment\n\n// Comment\n# Comment\r\n# Comment\r# Comment");
+    FileFilter filter = load("\n# Comment\n\n// Comment\n# Comment\r\n# Comment\r# Comment");
     assertThat(filter.ignoreByFileName).isEmpty();
     assertThat(filter.ignoreByRelativePath).isEmpty();
   }
@@ -404,10 +405,10 @@ class ShadowCopyFilterTest {
     Path nonLink = base.resolve("non-link");
     Path link  = base.resolve("link");
     Files.createSymbolicLink(link, nonLink);
-    assertThat(load("symbolic-link").filter(new RelativeFile(nonLink, nonLink.getFileName()))).isTrue();
-    assertThat(load("symbolic-link").filter(new RelativeFile(link, link.getFileName()))).isFalse();
-    assertThat(load("(filename:end-with:nk) && (symbolic-link)").filter(new RelativeFile(link, link.getFileName()))).isFalse();
-    assertThat(load("(filename:end-with:xx) && (symbolic-link)").filter(new RelativeFile(link, link.getFileName()))).isTrue();
+    assertThat(load("symbolic-link").filter(new FileInfo(nonLink, nonLink.getFileName()))).isTrue();
+    assertThat(load("symbolic-link").filter(new FileInfo(link, link.getFileName()))).isFalse();
+    assertThat(load("(filename:end-with:nk) && (symbolic-link)").filter(new FileInfo(link, link.getFileName()))).isFalse();
+    assertThat(load("(filename:end-with:xx) && (symbolic-link)").filter(new FileInfo(link, link.getFileName()))).isTrue();
   }
 
   @Test
@@ -418,10 +419,10 @@ class ShadowCopyFilterTest {
     Path big  = base.resolve("big");
     Files.writeString(big, "data...data...data...data...data...data", UTF_8);
 
-    assertThat(load("max-size:30").filter(new RelativeFile(small, small.getFileName()))).isTrue();
-    assertThat(load("max-size:30").filter(new RelativeFile(big, big.getFileName()))).isFalse();
-    assertThat(load("(filename:end-with:ig) && (max-size:30)").filter(new RelativeFile(big, big.getFileName()))).isFalse();
-    assertThat(load("(filename:end-with:xx) && (max-size:30)").filter(new RelativeFile(big, big.getFileName()))).isTrue();
+    assertThat(load("max-size:30").filter(new FileInfo(small, small.getFileName()))).isTrue();
+    assertThat(load("max-size:30").filter(new FileInfo(big, big.getFileName()))).isFalse();
+    assertThat(load("(filename:end-with:ig) && (max-size:30)").filter(new FileInfo(big, big.getFileName()))).isFalse();
+    assertThat(load("(filename:end-with:xx) && (max-size:30)").filter(new FileInfo(big, big.getFileName()))).isTrue();
   }
 
   @Test
@@ -432,14 +433,14 @@ class ShadowCopyFilterTest {
     Path file2 = base.resolve("file2");
     Files.writeString(file2, "data", UTF_8);
 
-    assertThat(load("(filename:equals:file1)&&(has-sibling:file2)").filter(new RelativeFile(file1, file1.getFileName()))).isFalse();
-    assertThat(load("(filename:equals:file1)&&(has-sibling:file3)").filter(new RelativeFile(file1, file1.getFileName()))).isTrue();
+    assertThat(load("(filename:equals:file1)&&(has-sibling:file2)").filter(new FileInfo(file1, file1.getFileName()))).isFalse();
+    assertThat(load("(filename:equals:file1)&&(has-sibling:file3)").filter(new FileInfo(file1, file1.getFileName()))).isTrue();
   }
 
-  private static RelativeFile file(String path) {
+  private static FileInfo file(String path) {
     Path relative = Paths.get(normalize(path));
     Path absolute = Paths.get(normalize("/tmp")).resolve(relative);
-    return new RelativeFile(absolute, relative);
+    return new FileInfo(absolute, relative);
   }
 
   private static String normalize(String path) {
