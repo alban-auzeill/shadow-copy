@@ -5,5 +5,5 @@ export CURRENT_VERSION="$(sed -rn "s/^project\.version '([^']*)'$/\1/p" build.gr
 (
   graalvm &&
     ./gradlew --no-daemon clean build &&
-    native-image -jar "build/libs/shadow-copy-${CURRENT_VERSION}.jar" "build/shadow-copy"
+    native-image -H:IncludeResources="com/auzeill/shadow/copy/shadow-copy.version" -jar "build/libs/shadow-copy-${CURRENT_VERSION}.jar" "build/shadow-copy"
 )
