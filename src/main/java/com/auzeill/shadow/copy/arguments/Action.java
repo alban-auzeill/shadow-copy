@@ -24,7 +24,9 @@ public enum Action {
     "    # Show the sorted list of shadow copy index and path, index 1 is the latest:\n" +
     "    shadow-copy history\n" +
     "    # Show only the latest shadow copy path:\n" +
-    "    shadow-copy history -n 1 --no-index",
+    "    shadow-copy history -n 1 --no-index\n" +
+    "    # Show size of each shadow copies:\n" +
+    "    shadow-copy history --no-index | xargs du -hs",
     HistoryAction::new,
     Option.SHADOW_DIRECTORY, Option.NO_INDEX, Option.NUMBER),
   DIFF("diff", " [ <target-directory> ] [ <index> ]  [ <index> ]\n" +

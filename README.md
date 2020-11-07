@@ -56,6 +56,8 @@ Available actions:
     shadow-copy history
     # Show only the latest shadow copy path:
     shadow-copy history -n 1 --no-index
+    # Show size of each shadow copies:
+    shadow-copy history --no-index | xargs du -hs
 - diff [ <target-directory> ] [ <index> ]  [ <index> ]
     # Compare the current directory with the last shadow copy:
     shadow-copy diff
