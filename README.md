@@ -90,3 +90,78 @@ Available options:
 
 If a file `.shadow-copy/ignore` exists, it is used to filter the shadow copy.
 See some filter examples in [filter-examples](filter-examples).
+
+Warning: `foo/` means `foo` directory, `foo` means `foo` file or symbolic links. 
+
+`ignore` file syntax:
+```
+ Pattern            | Examples (✔: file is ignored, ✘: file is not ignored)
+ ------------------ | ---------------------------------
+ filename:equals:   | filename:equals:foo.txt
+                    |  ✔ foo.txt
+                    |  ✘ foo.txt2
+                    |  ✔ dir1/foo.txt
+                    |
+                    | filename:equals:.git/
+                    |  ✔ dir1/.git/
+                    |  ✘ dir1/x.git
+                    |
+ relative:equals:   | relative:equals:dir1/foo.txt
+                    |  ✔ dir1/foo.txt
+                    |  ✘ foo.txt
+                    |  ✘ dir2/dir1/foo.txt
+                    |
+ filename:end-with: | filename:end-with:.txt
+                    |  ✔ foo.txt
+                    |  ✘ foo.txt2
+                    |  ✔ dir1/foo.txt
+                    |
+ relative:end-with: | relative:end-with:dir1/foo.txt
+                    |  ✔ dir1/foo.txt
+                    |  ✘ foo.txt
+                    |  ✔ dir2/dir1/foo.txt
+                    |
+ filename:reg-ex:   | filename:reg-ex:^[0-9]+\\.txt$
+                    |  ✔ 123.txt
+                    |  ✘ abc.txt
+                    |  ✔ abc/456.txt
+                    |
+ relative:reg-ex:   | relative:reg-ex:build/[0-9.]*/go
+                    |  ✔ dir1/build/123/go
+                    |  ✘ dir1/build/123/
+                    |  ✔ dir1/build/123/goXXX
+                    |
+ symbolic-link      | symbolic-link
+                    |  ✔ (all symbolic links)
+                    |
+ max-size:          | max-size:1024
+                    |  ✔ (file bigger than 1024 bytes)
+                    |
+ has-sibling:       | has-sibling:pom.xml
+                    |  ✔ (any sibling of pom.xml)
+                    |
+ '…'                | 'filename:equals:foo.txt'
+                    |  ✔ foo.txt
+                    |
+ "…"                | "filename:equals:foo.txt"
+                    |  ✔ foo.txt
+                    |
+ (…)                | (filename:equals:foo.txt)
+                    |  ✔ foo.txt
+                    |
+ […]                | [filename:equals:foo.txt]
+                    |  ✔ foo.txt
+                    |
+ {…}                | {filename:equals:foo.txt}
+                    |  ✔ foo.txt
+                    |
+ <…>                | <filename:equals:foo.txt>
+                    |  ✔ foo.txt
+                    |
+ &&                 | 'filename:equals:target/' && 'has-sibling:pom.xml'
+                    |  ✔ maven-project/target/ (with an existing maven-project/pom.xml file)
+                    |  ✘ target/ (without a pom.xml file)
+                    |
+ ||                 | 'filename:equals:build/' && ('has-sibling:build.gradle' || 'has-sibling:settings.gradle')
+                    |  ✔ gradle-project/build/ (with an existing maven-project/build.gradle file)
+```
