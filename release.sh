@@ -9,7 +9,7 @@ do_release() {
   (
     graalvm
     ./gradlew --no-daemon "-PreleaseVersion=${RELEASE_VERSION}" clean build
-    native-image -jar "build/libs/shadow-copy-${RELEASE_VERSION}.jar" build/shadow-copy
+    native-image -H:IncludeResources="com/auzeill/shadow/copy/shadow-copy.version" -jar "build/libs/shadow-copy-${RELEASE_VERSION}.jar" build/shadow-copy
     echo "Binary file: build/shadow-copy is ready to be downloaded on"
     echo "https://github.com/alban-auzeill/shadow-copy/releases"
     echo "to create the release: v${RELEASE_VERSION}"
