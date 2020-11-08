@@ -14,6 +14,30 @@ The main use-case is to monitor a user home directory or the `/etc` directory.
 
 Download latest `shadow-copy` from [shadow-copy/releases](https://github.com/alban-auzeill/shadow-copy/releases)
 
+#### linux binary
+
+```
+$ curl --location --silent --show-error --output shadow-copy https://github.com/alban-auzeill/shadow-copy/releases/download/1.0/shadow-copy
+$ chmod +x shadow-copy
+$ ./shadow-copy --help
+```
+
+#### java 11 jar
+
+```
+$ curl --location --silent --show-error --output shadow-copy-1.0.jar https://github.com/alban-auzeill/shadow-copy/releases/download/1.0/shadow-copy-1.0.jar
+$ java -jar shadow-copy-1.0.jar --help
+```
+
+#### from source code
+
+```
+$ git clone --depth 1 --single-branch  https://github.com/alban-auzeill/shadow-copy.git
+$ cd shadow-copy
+$ ./gradlew build
+$ java -jar build/libs/shadow-copy-1.0-SNAPSHOT.jar --help
+```
+
 ### Creating a shadow copy
 
 `./shadow-copy [<directory path 1>] [<directory path 2>] ...`
